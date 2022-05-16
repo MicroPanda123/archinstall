@@ -133,7 +133,7 @@ class Menu(TerminalMenu):
 			log(f"invalid parameter at Menu() call was at <{sys._getframe(1).f_code.co_name}>",level=logging.WARNING)
 			raise RequirementError('Menu.__init__() requires at least one option to proceed.')
 
-		if any([o for o in options if not isinstance(o, str)]):
+		if any(o for o in options if not isinstance(o, str)):
 			log(" * Menu options must be of type string * ", fg='red')
 			log(f"invalid parameter at Menu() call was at <{sys._getframe(1).f_code.co_name}>",level=logging.WARNING)
 			raise RequirementError('Menu.__init__() requires the options to be of type string')
@@ -161,7 +161,7 @@ class Menu(TerminalMenu):
 			action_info += str(_("Use ESC to skip"))
 
 		if self._explode_on_interrupt:
-			if len(action_info) > 0:
+			if action_info != '':
 				action_info += '\n'
 			action_info += str(_('Use CTRL+C to reset current selection\n\n'))
 
@@ -231,11 +231,11 @@ class Menu(TerminalMenu):
 	def run(self) -> MenuSelection:
 		ret = self._show()
 
-		if ret.type_ == MenuSelectionType.Ctrl_c:
-			if self._explode_on_interrupt and len(self._explode_warning) > 0:
-				response = Menu(self._explode_warning, Menu.yes_no(), skip=False).run()
-				if response.value == Menu.no():
-					return self.run()
+		if (ret.type_ == MenuSelectionType.Ctrl_c and self._explode_on_interrupt
+		    and len(self._explode_warning) > 0):
+			response = Menu(self._explode_warning, Menu.yes_no(), skip=False).run()
+			if response.value == Menu.no():
+				return self.run()
 
 		if ret.type_ is not MenuSelectionType.Selection and not self._skip:
 			return self.run()

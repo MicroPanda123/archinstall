@@ -69,11 +69,8 @@ class luks2:
 		log(f'Encrypting {partition} (This might take a while)', level=logging.INFO)
 
 		if not key_file:
-			if self.key_file:
-				key_file = self.key_file
-			else:
-				key_file = f"/tmp/{os.path.basename(self.partition.path)}.disk_pw"  # TODO: Make disk-pw-file randomly unique?
-
+			key_file = (self.key_file
+			            or f"/tmp/{os.path.basename(self.partition.path)}.disk_pw")
 		if not password:
 			password = self.password
 
@@ -103,7 +100,7 @@ class luks2:
 			# Retry formatting the volume because archinstall can some times be too quick
 			# which generates a "Device /dev/sdX does not exist or access denied." between
 			# setting up partitions and us trying to encrypt it.
-			for i in range(storage['DISK_RETRY_ATTEMPTS']):
+			for _ in range(storage['DISK_RETRY_ATTEMPTS']):
 				if (cmd_handle := SysCommand(cryptsetup_args)).exit_code != 0:
 					time.sleep(storage['DISK_TIMEOUTS'])
 				else:
@@ -112,33 +109,32 @@ class luks2:
 			if cmd_handle.exit_code != 0:
 				raise DiskError(f'Could not encrypt volume "{partition.path}": {b"".join(cmd_handle)}')
 		except SysCallError as err:
-			if err.exit_code == 256:
-				log(f'{partition} is being used, trying to unmount and crypt-close the device and running one more attempt at encrypting the device.', level=logging.DEBUG)
-				# Partition was in use, unmount it and try again
-				partition.unmount()
+			if err.exit_code != 256:
+				raise err
+
+			log(f'{partition} is being used, trying to unmount and crypt-close the device and running one more attempt at encrypting the device.', level=logging.DEBUG)
+			# Partition was in use, unmount it and try again
+			partition.unmount()
 
 				# Get crypt-information about the device by doing a reverse lookup starting with the partition path
 				# For instance: /dev/sda
-				SysCommand(f'bash -c "partprobe"')
-				devinfo = json.loads(b''.join(SysCommand(f"lsblk --fs -J {partition.path}")).decode('UTF-8'))['blockdevices'][0]
+			SysCommand('bash -c "partprobe"')
+			devinfo = json.loads(b''.join(SysCommand(f"lsblk --fs -J {partition.path}")).decode('UTF-8'))['blockdevices'][0]
 
-				# For each child (sub-partition/sub-device)
-				if len(children := devinfo.get('children', [])):
-					for child in children:
-						# Unmount the child location
-						if child_mountpoint := child.get('mountpoint', None):
-							log(f'Unmounting {child_mountpoint}', level=logging.DEBUG)
-							SysCommand(f"umount -R {child_mountpoint}")
+			# For each child (sub-partition/sub-device)
+			if len(children := devinfo.get('children', [])):
+				for child in children:
+					# Unmount the child location
+					if child_mountpoint := child.get('mountpoint', None):
+						log(f'Unmounting {child_mountpoint}', level=logging.DEBUG)
+						SysCommand(f"umount -R {child_mountpoint}")
 
-						# And close it if possible.
-						log(f"Closing crypt device {child['name']}", level=logging.DEBUG)
-						SysCommand(f"cryptsetup close {child['name']}")
+					# And close it if possible.
+					log(f"Closing crypt device {child['name']}", level=logging.DEBUG)
+					SysCommand(f"cryptsetup close {child['name']}")
 
-				# Then try again to set up the crypt-device
-				cmd_handle = SysCommand(cryptsetup_args)
-			else:
-				raise err
-
+			# Then try again to set up the crypt-device
+			cmd_handle = SysCommand(cryptsetup_args)
 		return key_file
 
 	def unlock(self, partition :Partition, mountpoint :str, key_file :str) -> Partition:
@@ -162,14 +158,13 @@ class luks2:
 		if os.path.islink(f'/dev/mapper/{mountpoint}'):
 			self.mapdev = f'/dev/mapper/{mountpoint}'
 
-			unlocked_partition = Partition(
-				self.mapdev,
-				block_device=MapperDev(mountpoint).partition.block_device,
-				encrypted=True,
-				filesystem=get_filesystem_type(self.mapdev),
-				autodetect_filesystem=False
+			return Partition(
+			    self.mapdev,
+			    block_device=MapperDev(mountpoint).partition.block_device,
+			    encrypted=True,
+			    filesystem=get_filesystem_type(self.mapdev),
+			    autodetect_filesystem=False,
 			)
-			return unlocked_partition
 
 	def close(self, mountpoint :Optional[str] = None) -> bool:
 		if not mountpoint:

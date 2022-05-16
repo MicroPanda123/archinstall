@@ -23,6 +23,7 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
+
 import argparse
 import copy
 import ctypes
@@ -59,7 +60,10 @@ from typing import (
 try:
     import termios
 except ImportError as e:
-    raise NotImplementedError('"{}" is currently not supported.'.format(platform.system())) from e
+    raise NotImplementedError(
+        f'"{platform.system()}" is currently not supported.'
+    ) from e
+
 
 __author__ = "Ingo Meyer"
 __email__ = "i.meyer@fz-juelich.de"
@@ -122,10 +126,7 @@ class UnknownMenuEntryError(Exception):
 
 def get_locale() -> str:
     user_locale = locale.getlocale()[1]
-    if user_locale is None:
-        return "ascii"
-    else:
-        return user_locale.lower()
+    return "ascii" if user_locale is None else user_locale.lower()
 
 
 def wcswidth(text: str) -> int:
@@ -195,8 +196,7 @@ class TerminalMenu:
             else:
                 matches = []
                 for i, menu_entry in enumerate(self._menu_entries):
-                    match_obj = self._search_regex.search(menu_entry)
-                    if match_obj:
+                    if match_obj := self._search_regex.search(menu_entry):
                         matches.append((i, match_obj))
                 self._matches = matches
 
@@ -219,7 +219,10 @@ class TerminalMenu:
             self._search_regex = None
             while search_text and self._search_regex is None:
                 try:
-                    self._search_regex = re.compile(search_text, flags=re.IGNORECASE if not self._case_sensitive else 0)
+                    self._search_regex = re.compile(
+                        search_text, flags=0 if self._case_sensitive else re.IGNORECASE
+                    )
+
                 except re.error:
                     search_text = search_text[:-1]
             self._update_matches()
@@ -236,10 +239,7 @@ class TerminalMenu:
 
         @property
         def occupied_lines_count(self) -> int:
-            if not self and not self._show_search_hint:
-                return 0
-            else:
-                return 1
+            return 0 if not self and not self._show_search_hint else 1
 
         def __bool__(self) -> bool:
             return self._search_text is not None
@@ -645,15 +645,17 @@ class TerminalMenu:
                         preselected_indices.add(item)
                     else:
                         raise IndexError(
-                            "Error: {} is outside the allowable range of 0..{}.".format(
-                                item, len(self._menu_entries) - 1
-                            )
+                            f"Error: {item} is outside the allowable range of 0..{len(self._menu_entries) - 1}."
                         )
+
                 elif isinstance(item, str):
                     try:
                         preselected_indices.update(menu_entry_to_indices[item])
                     except KeyError as e:
-                        raise UnknownMenuEntryError('Pre-selection "{}" is not a valid menu entry.'.format(item)) from e
+                        raise UnknownMenuEntryError(
+                            f'Pre-selection "{item}" is not a valid menu entry.'
+                        ) from e
+
                 else:
                     raise ValueError('"preselected_entries" must either contain integers or strings.')
             return preselected_indices
@@ -796,13 +798,14 @@ class TerminalMenu:
         shortcut_hints_in_parentheses: bool,
     ) -> Optional[str]:
         shortcut_hints_line = ", ".join(
-            "[{}]: {}".format(shortcut_key, menu_entry)
+            f"[{shortcut_key}]: {menu_entry}"
             for shortcut_key, menu_entry in zip(shortcut_keys, menu_entries)
             if shortcut_key is not None
         )
+
         if shortcut_hints_line != "":
             if shortcut_hints_in_parentheses:
-                return "(" + shortcut_hints_line + ")"
+                return f"({shortcut_hints_line})"
             else:
                 return shortcut_hints_line
         return None
@@ -814,21 +817,19 @@ class TerminalMenu:
             return key
         alt_modified_regex = re.compile(r"[Aa]lt-(\S)")
         ctrl_modified_regex = re.compile(r"[Cc]trl-(\S)")
-        match_obj = alt_modified_regex.match(key)
-        if match_obj:
+        if match_obj := alt_modified_regex.match(key):
             return "\033" + match_obj.group(1)
-        match_obj = ctrl_modified_regex.match(key)
-        if match_obj:
+        if match_obj := ctrl_modified_regex.match(key):
             # Ctrl + key is interpreted by terminals as the ascii code of that key minus 64
             ctrl_code_ascii = ord(match_obj.group(1).upper()) - 64
             if ctrl_code_ascii < 0:
                 # Interpret negative ascii codes as unsigned 7-Bit integers
                 ctrl_code_ascii = ctrl_code_ascii & 0x80 - 1
             return chr(ctrl_code_ascii)
-        raise ValueError('Cannot interpret the given key "{}".'.format(key))
+        raise ValueError(f'Cannot interpret the given key "{key}".')
 
     @classmethod
-    def _init_backspace_control_character(self) -> None:
+    def _init_backspace_control_character(cls) -> None:
         try:
             with open("/dev/tty", "r") as tty:
                 stty_output = subprocess.check_output(["stty", "-a"], universal_newlines=True, stdin=tty)
@@ -840,12 +841,15 @@ class TerminalMenu:
                 name, ctrl_code = match_obj.group(1), match_obj.group(2)
                 if name != "erase":
                     continue
-                self._name_to_control_character["backspace"] = self._get_keycode_for_key("ctrl-" + ctrl_code)
+                cls._name_to_control_character[
+                    "backspace"
+                ] = cls._get_keycode_for_key(f"ctrl-{ctrl_code}")
+
                 return
         except subprocess.CalledProcessError:
             pass
         # Backspace control character could not be queried, assume `<Ctrl-?>` (is most often used)
-        self._name_to_control_character["backspace"] = "\177"
+        cls._name_to_control_character["backspace"] = "\177"
 
     @classmethod
     def _add_missing_control_characters_for_keys(cls, keys: Iterable[str]) -> None:
@@ -864,7 +868,7 @@ class TerminalMenu:
             else ""
             for codename in cls._codenames
         }
-        cls._codename_to_terminal_code.update(cls._name_to_control_character)
+        cls._codename_to_terminal_code |= cls._name_to_control_character
         cls._terminal_code_to_codename = {
             terminal_code: codename for codename, terminal_code in cls._codename_to_terminal_code.items()
         }
@@ -884,12 +888,12 @@ class TerminalMenu:
             raise e
 
     @classmethod
-    def _num_lines(self) -> int:
-        return int(self._query_terminfo_database("lines"))
+    def _num_lines(cls) -> int:
+        return int(cls._query_terminfo_database("lines"))
 
     @classmethod
-    def _num_cols(self) -> int:
-        return int(self._query_terminfo_database("cols"))
+    def _num_cols(cls) -> int:
+        return int(cls._query_terminfo_database("cols"))
 
     def _check_for_valid_styles(self) -> None:
         invalid_styles = []
@@ -903,12 +907,15 @@ class TerminalMenu:
             self._multi_select_cursor_brackets_style,
             self._multi_select_cursor_style,
         ):
-            for style in style_tuple:
-                if style not in self._codename_to_capname:
-                    invalid_styles.append(style)
+            invalid_styles.extend(
+                style
+                for style in style_tuple
+                if style not in self._codename_to_capname
+            )
+
         if invalid_styles:
             if len(invalid_styles) == 1:
-                raise InvalidStyleError('The style "{}" does not exist.'.format(invalid_styles[0]))
+                raise InvalidStyleError(f'The style "{invalid_styles[0]}" does not exist.')
             else:
                 raise InvalidStyleError('The styles ("{}") do not exist.'.format('", "'.join(invalid_styles)))
 
@@ -955,10 +962,9 @@ class TerminalMenu:
                     string_to_key = {
                         " ": "space",
                     }
-                    keys_string = ", ".join(
-                        "<" + string_to_key.get(accept_key, accept_key) + ">" for accept_key in keys
+                    return ", ".join(
+                        f"<{string_to_key.get(accept_key, accept_key)}>" for accept_key in keys
                     )
-                    return keys_string
 
                 accept_keys_string = get_string_from_keys(self._accept_keys)
                 multi_select_keys_string = get_string_from_keys(self._multi_select_keys)
@@ -1333,13 +1339,17 @@ class TerminalMenu:
                 reset_codes = reset_codes_io.getvalue()
 
                 cursor_with_brackets_only = re.sub(
-                    r"[^{}]".format(re.escape(bracket_characters)), " ", self._multi_select_cursor
+                    f"[^{re.escape(bracket_characters)}]", " ", self._multi_select_cursor
                 )
+
                 cursor_with_brackets_only_styled = re.sub(
-                    r"[{}]+".format(re.escape(bracket_characters)),
-                    lambda match_obj: bracket_style_escape_codes + match_obj.group(0) + reset_codes,
+                    f"[{re.escape(bracket_characters)}]+",
+                    lambda match_obj: bracket_style_escape_codes
+                    + match_obj.group(0)
+                    + reset_codes,
                     cursor_with_brackets_only,
                 )
+
                 cursor_styled = re.sub(
                     r"[{brackets}]+|[^{brackets}\s]+".format(brackets=re.escape(bracket_characters)),
                     lambda match_obj: (
@@ -1875,7 +1885,7 @@ def get_argumentparser() -> argparse.ArgumentParser:
 
 def parse_arguments() -> AttributeDict:
     parser = get_argumentparser()
-    args = AttributeDict({key: value for key, value in vars(parser.parse_args()).items()})
+    args = AttributeDict(dict(vars(parser.parse_args())))
     if not args.print_version and not args.entries:
         raise NoMenuEntriesError("No menu entries given!")
     if args.skip_empty_entries:
@@ -1937,10 +1947,10 @@ def main() -> None:
     except SystemExit:
         sys.exit(0)  # Error code 0 is the error case in this program
     except NoMenuEntriesError as e:
-        print(str(e), file=sys.stderr)
+        print(e, file=sys.stderr)
         sys.exit(0)
     if args.print_version:
-        print("{}, version {}".format(os.path.basename(sys.argv[0]), __version__))
+        print(f"{os.path.basename(sys.argv[0])}, version {__version__}")
         sys.exit(0)
     try:
         terminal_menu = TerminalMenu(
@@ -1984,21 +1994,20 @@ def main() -> None:
             explode_on_interrupt=args.explode_on_interrupt,
         )
     except (InvalidParameterCombinationError, InvalidStyleError, UnknownMenuEntryError) as e:
-        print(str(e), file=sys.stderr)
+        print(e, file=sys.stderr)
         sys.exit(0)
     chosen_entries = terminal_menu.show()
     if chosen_entries is None:
         sys.exit(0)
+    elif isinstance(chosen_entries, Iterable):
+        if args.stdout:
+            print(",".join(str(entry + 1) for entry in chosen_entries))
+        sys.exit(chosen_entries[0] + 1)
     else:
-        if isinstance(chosen_entries, Iterable):
-            if args.stdout:
-                print(",".join(str(entry + 1) for entry in chosen_entries))
-            sys.exit(chosen_entries[0] + 1)
-        else:
-            chosen_entry = chosen_entries
-            if args.stdout:
-                print(chosen_entry + 1)
-            sys.exit(chosen_entry + 1)
+        chosen_entry = chosen_entries
+        if args.stdout:
+            print(chosen_entry + 1)
+        sys.exit(chosen_entry + 1)
 
 
 if __name__ == "__main__":

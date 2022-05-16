@@ -86,9 +86,7 @@ def select_driver(options: Dict[str, Any] = AVAILABLE_GFX_DRIVERS) -> str:
 	there for appeal to the general public first and edge cases later)
 	"""
 
-	drivers = sorted(list(options))
-
-	if drivers:
+	if drivers := sorted(list(options)):
 		arguments = storage.get('arguments', {})
 		title = ''
 

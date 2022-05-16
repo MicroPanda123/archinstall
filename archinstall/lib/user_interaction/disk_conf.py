@@ -19,7 +19,7 @@ def ask_for_main_filesystem_format(advanced_options=False) -> str:
 	advanced = {'ntfs': 'ntfs'}
 
 	if advanced_options:
-		options.update(advanced)
+		options |= advanced
 
 	prompt = _('Select which filesystem your main partition should use')
 	choice = Menu(prompt, options, skip=False).run()

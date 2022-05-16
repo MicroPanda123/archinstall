@@ -47,7 +47,7 @@ if archinstall.arguments['harddrive']:
 	# First, we configure the basic filesystem layout
 	with archinstall.Filesystem(archinstall.arguments['harddrive'], archinstall.GPT) as fs:
 		# We use the entire disk instead of setting up partitions on your own
-		if archinstall.arguments['harddrive'].keep_partitions is False:
+		if not archinstall.arguments['harddrive'].keep_partitions:
 			fs.use_entire_disk(root_filesystem_type=archinstall.arguments.get('filesystem', 'btrfs'))
 
 		boot = fs.find_partition('/boot')

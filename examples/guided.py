@@ -106,22 +106,23 @@ def perform_filesystem_operations():
 		We mention the drive one last time, and count from 5 to 0.
 	"""
 
-	if archinstall.arguments.get('harddrives', None):
-		print(_(f" ! Formatting {archinstall.arguments['harddrives']} in "), end='')
-		archinstall.do_countdown()
+	if not archinstall.arguments.get('harddrives', None):
+		return
+	print(_(f" ! Formatting {archinstall.arguments['harddrives']} in "), end='')
+	archinstall.do_countdown()
 
-		"""
+	"""
 			Setup the blockdevice, filesystem (and optionally encryption).
 			Once that's done, we'll hand over to perform_installation()
 		"""
-		mode = archinstall.GPT
-		if archinstall.has_uefi() is False:
-			mode = archinstall.MBR
+	mode = archinstall.GPT
+	if archinstall.has_uefi() is False:
+		mode = archinstall.MBR
 
-		for drive in archinstall.arguments.get('harddrives', []):
-			if archinstall.arguments.get('disk_layouts', {}).get(drive.path):
-				with archinstall.Filesystem(drive, mode) as fs:
-					fs.load_layout(archinstall.arguments['disk_layouts'][drive.path])
+	for drive in archinstall.arguments.get('harddrives', []):
+		if archinstall.arguments.get('disk_layouts', {}).get(drive.path):
+			with archinstall.Filesystem(drive, mode) as fs:
+				fs.load_layout(archinstall.arguments['disk_layouts'][drive.path])
 
 
 def perform_installation(mountpoint):
@@ -138,9 +139,11 @@ def perform_installation(mountpoint):
 
 		# Placing /boot check during installation because this will catch both re-use and wipe scenarios.
 		for partition in installation.partitions:
-			if partition.mountpoint == installation.target + '/boot':
-				if partition.size < 0.19: # ~200 MiB in GiB
-					raise archinstall.DiskError(f"The selected /boot partition in use is not large enough to properly install a boot loader. Please resize it to at least 200MiB and re-run the installation.")
+			if (partition.mountpoint == f'{installation.target}/boot'
+			    and partition.size < 0.19):
+				raise archinstall.DiskError(
+				    "The selected /boot partition in use is not large enough to properly install a boot loader. Please resize it to at least 200MiB and re-run the installation."
+				)
 
 		# if len(mirrors):
 		# Certain services might be running that affects the system during installation.
@@ -161,14 +164,20 @@ def perform_installation(mountpoint):
 			logged = False
 			while archinstall.service_state('dbus-org.freedesktop.timesync1.service') not in ('running'):
 				if not logged:
-					installation.log(f"Waiting for dbus-org.freedesktop.timesync1.service to enter running state", level=logging.INFO)
+					installation.log(
+					    "Waiting for dbus-org.freedesktop.timesync1.service to enter running state",
+					    level=logging.INFO,
+					)
 					logged = True
 				time.sleep(1)
 
 			logged = False
 			while 'Server: n/a' in archinstall.SysCommand('timedatectl timesync-status --no-pager --property=Server --value'):
 				if not logged:
-					installation.log(f"Waiting for timedatectl timesync-status to report a timesync against a server", level=logging.INFO)
+					installation.log(
+					    "Waiting for timedatectl timesync-status to report a timesync against a server",
+					    level=logging.INFO,
+					)
 					logged = True
 				time.sleep(1)
 
@@ -191,11 +200,7 @@ def perform_installation(mountpoint):
 				installation.add_additional_packages("grub")
 			installation.add_bootloader(archinstall.arguments["bootloader"])
 
-			# If user selected to copy the current ISO network configuration
-			# Perform a copy of the config
-			network_config = archinstall.arguments.get('nic', None)
-
-			if network_config:
+			if network_config := archinstall.arguments.get('nic', None):
 				handler = NetworkConfigurationHandler(network_config)
 				handler.config_installer(installation)
 
@@ -274,18 +279,17 @@ if not (archinstall.check_mirror_reachable() or archinstall.arguments.get('skip-
 	exit(1)
 
 if not archinstall.arguments.get('offline', False):
-	latest_version_archlinux_keyring = max([k.pkg_version for k in archinstall.find_package('archlinux-keyring')])
+	latest_version_archlinux_keyring = max(
+	    k.pkg_version for k in archinstall.find_package('archlinux-keyring'))
 
 	# If we want to check for keyring updates
 	# and the installed package version is lower than the upstream version
-	if archinstall.arguments.get('skip-keyring-update', False) is False and \
-		archinstall.installed_package('archlinux-keyring').version < latest_version_archlinux_keyring:
-
-		# Then we update the keyring in the ISO environment
-		if not archinstall.update_keyring():
-			log_file = os.path.join(archinstall.storage.get('LOG_PATH', None), archinstall.storage.get('LOG_FILE', None))
-			archinstall.log(f"Failed to update the keyring. Please check your internet connection and the log file '{log_file}'.", level=logging.INFO, fg="red")
-			exit(1)
+	if (archinstall.arguments.get('skip-keyring-update', False) is False
+	    and archinstall.installed_package('archlinux-keyring').version <
+	    latest_version_archlinux_keyring and not archinstall.update_keyring()):
+		log_file = os.path.join(archinstall.storage.get('LOG_PATH', None), archinstall.storage.get('LOG_FILE', None))
+		archinstall.log(f"Failed to update the keyring. Please check your internet connection and the log file '{log_file}'.", level=logging.INFO, fg="red")
+		exit(1)
 
 if not archinstall.arguments.get('silent'):
 	ask_user_questions()

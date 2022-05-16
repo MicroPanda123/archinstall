@@ -39,10 +39,7 @@ TODO exec con return parameter
 def select_activate_NTP():
 	prompt = "Would you like to use automatic time synchronization (NTP) with the default time servers? [Y/n]: "
 	choice = Menu(prompt, Menu.yes_no(), default_option=Menu.yes()).run()
-	if choice == Menu.yes():
-		return True
-	else:
-		return False
+	return choice == Menu.yes()
 
 
 def select_mode():
@@ -56,20 +53,19 @@ following functions will be at locale_helpers, so they will have to be called pr
 """
 def get_locale_mode_text(mode):
 	if mode == 'LC_ALL':
-		mode_text = "general (LC_ALL)"
-	elif mode == "LC_CTYPE":
-		mode_text = "Character set"
-	elif mode == "LC_NUMERIC":
-		mode_text = "Numeric values"
-	elif mode == "LC_TIME":
-		mode_text = "Time Values"
+		return "general (LC_ALL)"
 	elif mode == "LC_COLLATE":
-		mode_text = "sort order"
+		return "sort order"
+	elif mode == "LC_CTYPE":
+		return "Character set"
 	elif mode == "LC_MESSAGES":
-		mode_text = "text messages"
+		return "text messages"
+	elif mode == "LC_NUMERIC":
+		return "Numeric values"
+	elif mode == "LC_TIME":
+		return "Time Values"
 	else:
-		mode_text = "Unassigned"
-	return mode_text
+		return "Unassigned"
 
 def reset_cmd_locale():
 	""" sets the cmd_locale to its saved default """
@@ -127,10 +123,10 @@ def set_cmd_locale(general :str = None,
 	archinstall.storage['CMD_LOCALE'] = result
 
 def list_installed_locales() -> list[str]:
-	lista = []
-	for line in archinstall.SysCommand('locale -a'):
-		lista.append(line.decode('UTF-8').strip())
-	return lista
+	return [
+	    line.decode('UTF-8').strip()
+	    for line in archinstall.SysCommand('locale -a')
+	]
 
 
 """
@@ -200,10 +196,16 @@ class SetupMenu(archinstall.GeneralMenu):
 		if self._data_store.get('LC_ALL',None):
 			archinstall.storage['CMD_LOCALE'] = {'LC_ALL':self._data_store['LC_ALL']}
 		else:
-			exec_locale = {}
-			for item in ['LC_COLLATE','LC_CTYPE','LC_MESSAGES','LC_NUMERIC','LC_TIME']:
-				if self._data_store.get(item,None):
-					exec_locale[item] = self._data_store[item]
+			exec_locale = {
+			    item: self._data_store[item]
+			    for item in [
+			        'LC_COLLATE',
+			        'LC_CTYPE',
+			        'LC_MESSAGES',
+			        'LC_NUMERIC',
+			        'LC_TIME',
+			    ] if self._data_store.get(item, None)
+			}
 			archinstall.storage['CMD_LOCALE'] = exec_locale
 		archinstall.log(f"Archinstall will execute with {archinstall.storage.get('CMD_LOCALE',None)} locale")
 
@@ -234,9 +236,7 @@ class MyMenu(archinstall.GlobalMenu):
 			mandatory_list = ['hostname']
 			if archinstall.arguments.get('advanced',False):
 				options_list.expand(['sys-language','sys-encoding'])
-		elif self._execution_mode == 'minimal':
-			pass
-		else:
+		elif self._execution_mode != 'minimal':
 			archinstall.log(f"self._execution_mode {self._execution_mode} not supported")
 			exit(1)
 		if self._execution_mode != 'lineal':
@@ -330,11 +330,14 @@ def ask_user_questions(mode):
 				global_menu.exec_option(entry)
 				archinstall.arguments[entry] = global_menu.option(entry).get_selection()
 		else:
-			global_menu.set_option('install',
-							archinstall.Selector(
-								global_menu._install_text(mode),
-								exec_func=lambda n,v: True if global_menu._missing_configs(mode) == 0 else False,
-								enabled=True))
+			global_menu.set_option(
+			    'install',
+			    archinstall.Selector(
+			        global_menu._install_text(mode),
+			        exec_func=lambda n, v: global_menu._missing_configs(mode) == 0,
+			        enabled=True,
+			    ),
+			)
 
 			global_menu.run()
 
@@ -344,23 +347,24 @@ def perform_filesystem_operations():
 		We mention the drive one last time, and count from 5 to 0.
 	"""
 
-	if archinstall.arguments.get('harddrives', None):
-		print(f" ! Formatting {archinstall.arguments['harddrives']} in ", end='')
-		archinstall.do_countdown()
+	if not archinstall.arguments.get('harddrives', None):
+		return
+	print(f" ! Formatting {archinstall.arguments['harddrives']} in ", end='')
+	archinstall.do_countdown()
 
-		"""
+	"""
 			Setup the blockdevice, filesystem (and optionally encryption).
 			Once that's done, we'll hand over to perform_installation()
 		"""
 
-		mode = archinstall.GPT
-		if archinstall.has_uefi() is False:
-			mode = archinstall.MBR
+	mode = archinstall.GPT
+	if archinstall.has_uefi() is False:
+		mode = archinstall.MBR
 
-		for drive in archinstall.arguments.get('harddrives', []):
-			if archinstall.arguments.get('disk_layouts', {}).get(drive.path):
-				with archinstall.Filesystem(drive, mode) as fs:
-					fs.load_layout(archinstall.arguments['disk_layouts'][drive.path])
+	for drive in archinstall.arguments.get('harddrives', []):
+		if archinstall.arguments.get('disk_layouts', {}).get(drive.path):
+			with archinstall.Filesystem(drive, mode) as fs:
+				fs.load_layout(archinstall.arguments['disk_layouts'][drive.path])
 
 def disk_setup(installation):
 	# Mount all the drives to the desired mountpoint
@@ -370,10 +374,11 @@ def disk_setup(installation):
 
 	# Placing /boot check during installation because this will catch both re-use and wipe scenarios.
 	for partition in installation.partitions:
-		if partition.mountpoint == installation.target + '/boot':
-			if partition.size < 0.19:  # ~200 MiB in GiB
-				raise archinstall.DiskError(
-					f"The selected /boot partition in use is not large enough to properly install a boot loader. Please resize it to at least 200MiB and re-run the installation.")
+		if (partition.mountpoint == f'{installation.target}/boot'
+		    and partition.size < 0.19):
+			raise archinstall.DiskError(
+			    "The selected /boot partition in use is not large enough to properly install a boot loader. Please resize it to at least 200MiB and re-run the installation."
+			)
 
 def os_setup(installation):
 	# if len(mirrors):
@@ -398,9 +403,7 @@ def os_setup(installation):
 		if archinstall.arguments['swap']:
 			installation.setup_swap('zram')
 
-		network_config = archinstall.arguments.get('nic', None)
-
-		if network_config:
+		if network_config := archinstall.arguments.get('nic', None):
 			handler = NetworkConfigurationHandler(network_config)
 			handler.config_installer(installation)
 

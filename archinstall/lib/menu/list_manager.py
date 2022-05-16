@@ -128,7 +128,7 @@ class ListManager:
 		explainer = str(_('\n Choose an object from the list, and select one of the available actions for it to execute'))
 		self._prompt = prompt + explainer if prompt else explainer
 
-		self._null_action = str(null_action) if null_action else None
+		self._null_action = null_action or None
 
 		if not default_action:
 			self._default_action = [self._null_action]
@@ -137,13 +137,18 @@ class ListManager:
 		else:
 			self._default_action = [str(default_action),]
 
-		self.header = header if header else None
+		self.header = header or None
 		self.cancel_action = str(_('Cancel'))
 		self.confirm_action = str(_('Confirm and exit'))
 		self.separator = ''
 		self.bottom_list = [self.confirm_action,self.cancel_action]
 		self.bottom_item = [self.cancel_action]
-		self.base_actions = base_actions if base_actions else [str(_('Add')),str(_('Copy')),str(_('Edit')),str(_('Delete'))]
+		self.base_actions = base_actions or [
+		    str(_('Add')),
+		    str(_('Copy')),
+		    str(_('Edit')),
+		    str(_('Delete')),
+		]
 		self.base_data = base_list
 		self._data = copy(base_list) # as refs, changes are immediate
 		# default values for the null case
@@ -185,7 +190,7 @@ class ListManager:
 				self.action = target
 				break
 
-			if target.value and target.value in self._default_action:
+			if target.value in self._default_action:
 				self.action = target.value
 				self.target = None
 				self.exec_action(self._data)
@@ -208,7 +213,7 @@ class ListManager:
 
 	def run_actions(self,prompt_data=None):
 		options = self.action_list() + self.bottom_item
-		prompt = _("Select an action for < {} >").format(prompt_data if prompt_data else self.target)
+		prompt = _("Select an action for < {} >").format(prompt_data or self.target)
 		choice = Menu(
 			prompt,
 			options,

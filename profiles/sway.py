@@ -38,9 +38,7 @@ def _prep_function(*args, **kwargs):
 	other code in this stage. So it's a safe way to ask the user
 	for more input before any other installer steps start.
 	"""
-	driver = archinstall.select_driver()
-
-	if driver:
+	if driver := archinstall.select_driver():
 		archinstall.storage["gfx_driver_packages"] = driver
 		if not _check_driver():
 			return _prep_function(args, kwargs)

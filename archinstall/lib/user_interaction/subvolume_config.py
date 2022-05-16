@@ -62,10 +62,7 @@ class SubvolumeMenu(GeneralMenu):
 	def __init__(self,parameters,action=None):
 		self.data = parameters
 		self.action = action
-		self.ds = {}
-		self.ds['name'] = None
-		self.ds['mountpoint'] = None
-		self.ds['options'] = None
+		self.ds = {'name': None, 'mountpoint': None, 'options': None}
 		if self.data:
 			origkey,origval = list(self.data.items())[0]
 			self.ds['name'] = origkey
@@ -113,14 +110,13 @@ class SubvolumeMenu(GeneralMenu):
 			return
 		if not self.ds['name']:
 			return
-		else:
-			key = self.ds['name']
-			value = {}
-			if self.ds['mountpoint']:
-				value['mountpoint'] = self.ds['mountpoint']
-			if self.ds['options']:
-				value['options'] = self.ds['options']
-			self.data.update({key : value})
+		key = self.ds['name']
+		value = {}
+		if self.ds['mountpoint']:
+			value['mountpoint'] = self.ds['mountpoint']
+		if self.ds['options']:
+			value['options'] = self.ds['options']
+		self.data.update({key : value})
 
 	def _select_subvolume_name(self,value):
 		return TextInput(str(_("Subvolume name :")),value).run()

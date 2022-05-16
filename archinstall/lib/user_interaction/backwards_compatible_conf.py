@@ -46,7 +46,7 @@ def generic_select(
 		log(f"invalid parameter at Menu() call was at <{sys._getframe(1).f_code.co_name}>", level=logging.WARNING)
 		raise RequirementError("generic_select() requires an iterable as option.")
 
-	input_text = input_text if input_text else _('Select one of the values shown below: ')
+	input_text = input_text or _('Select one of the values shown below: ')
 
 	if isinstance(p_options, dict):
 		options = list(p_options.values())
@@ -85,7 +85,7 @@ def generic_multi_select(p_options: Union[list, dict],
 							default: Any = None,
 							allow_empty: bool = False) -> Any:
 
-	text = text if text else _("Select one or more of the options below: ")
+	text = text or _("Select one or more of the options below: ")
 
 	return generic_select(p_options,
 							input_text=text,

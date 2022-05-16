@@ -25,9 +25,7 @@ def _prep_function(*args, **kwargs):
 	for more input before any other installer steps start.
 	"""
 
-	driver = archinstall.select_driver()
-
-	if driver:
+	if driver := archinstall.select_driver():
 		archinstall.storage["gfx_driver_packages"] = driver
 		return True
 

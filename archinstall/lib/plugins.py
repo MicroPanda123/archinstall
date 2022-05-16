@@ -29,15 +29,15 @@ for plugin_definition in metadata.entry_points().select(group='archinstall.plugi
 
 # The following functions and core are support structures for load_plugin()
 def localize_path(profile_path :str) -> str:
-	if (url := urllib.parse.urlparse(profile_path)).scheme and url.scheme in ('https', 'http'):
-		converted_path = f"/tmp/{os.path.basename(profile_path).replace('.py', '')}_{hashlib.md5(os.urandom(12)).hexdigest()}.py"
-
-		with open(converted_path, "w") as temp_file:
-			temp_file.write(urllib.request.urlopen(url.geturl()).read().decode('utf-8'))
-
-		return converted_path
-	else:
+	if not (url := urllib.parse.urlparse(profile_path)
+	        ).scheme or url.scheme not in ('https', 'http'):
 		return profile_path
+	converted_path = f"/tmp/{os.path.basename(profile_path).replace('.py', '')}_{hashlib.md5(os.urandom(12)).hexdigest()}.py"
+
+	with open(converted_path, "w") as temp_file:
+		temp_file.write(urllib.request.urlopen(url.geturl()).read().decode('utf-8'))
+
+	return converted_path
 
 
 def import_via_path(path :str, namespace :Optional[str] = None) -> ModuleType:

@@ -130,7 +130,7 @@ class BlockDevice:
 		if b'not a block device' in result:
 			raise DiskError(f'Can not read partitions off something that isn\'t a block device: {self.path}')
 
-		if not result[:1] == b'{':
+		if result[:1] != b'{':
 			raise DiskError('Error getting JSON output from:', f'/usr/bin/lsblk -J {self.path}')
 
 		r = json.loads(result.decode('UTF-8'))
@@ -139,9 +139,7 @@ class BlockDevice:
 			for part in r['blockdevices'][0]['children']:
 				part_id = part['name'][len(os.path.basename(self.path)):]
 				if part_id not in self.part_cache:
-					# TODO: Force over-write even if in cache?
-					if part_id not in self.part_cache or self.part_cache[part_id].size != part['size']:
-						self.part_cache[part_id] = Partition(root_path + part_id, block_device=self, part_id=part_id)
+					self.part_cache[part_id] = Partition(root_path + part_id, block_device=self, part_id=part_id)
 
 		return {k: self.part_cache[k] for k in sorted(self.part_cache)}
 
@@ -227,29 +225,17 @@ class BlockDevice:
 	def largest_free_space(self) -> List[str]:
 		info = []
 		for space_info in self.free_space:
-			if not info:
+			if info and space_info[-1] > info[-1] or not info:
 				info = space_info
-			else:
-				# [-1] = size
-				if space_info[-1] > info[-1]:
-					info = space_info
 		return info
 
 	@property
 	def first_free_sector(self) -> str:
-		if info := self.largest_free_space:
-			start = info[0]
-		else:
-			start = '512MB'
-		return start
+		return info[0] if (info := self.largest_free_space) else '512MB'
 
 	@property
 	def first_end_sector(self) -> str:
-		if info := self.largest_free_space:
-			end = info[1]
-		else:
-			end = f"{self.size}GB"
-		return end
+		return info[1] if (info := self.largest_free_space) else f"{self.size}GB"
 
 	def partprobe(self) -> bool:
 		return SysCommand(['partprobe', self.path]).exit_code == 0
@@ -258,27 +244,21 @@ class BlockDevice:
 		return len(self.partitions)
 
 	def has_mount_point(self, mountpoint :str) -> bool:
-		for partition in self.partitions:
-			if self.partitions[partition].mountpoint == mountpoint:
-				return True
-		return False
+		return any(self.partitions[partition].mountpoint == mountpoint
+		           for partition in self.partitions)
 
 	def flush_cache(self) -> None:
 		self.part_cache = {}
 
 	def get_partition(self, uuid :str) -> Partition:
-		count = 0
-		while count < 5:
+		for count in range(5):
 			for partition_uuid, partition in self.partitions.items():
 				if partition.uuid.lower() == uuid.lower():
 					return partition
-			else:
-				log(f"uuid {uuid} not found. Waiting for {count +1} time",level=logging.DEBUG)
-				time.sleep(float(storage['arguments'].get('disk-sleep', 0.2)))
-				count += 1
-		else:
-			log(f"Could not find {uuid} in disk after 5 retries",level=logging.INFO)
-			print(f"Cache: {self.part_cache}")
-			print(f"Partitions: {self.partitions.items()}")
-			print(f"UUID: {[uuid]}")
-			raise DiskError(f"New partition {uuid} never showed up after adding new partition on {self}")
+			log(f"uuid {uuid} not found. Waiting for {count +1} time",level=logging.DEBUG)
+			time.sleep(float(storage['arguments'].get('disk-sleep', 0.2)))
+		log(f"Could not find {uuid} in disk after 5 retries",level=logging.INFO)
+		print(f"Cache: {self.part_cache}")
+		print(f"Partitions: {self.partitions.items()}")
+		print(f"UUID: {[uuid]}")
+		raise DiskError(f"New partition {uuid} never showed up after adding new partition on {self}")

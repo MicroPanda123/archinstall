@@ -39,8 +39,6 @@ class DMCryptDev:
 		except SysCallError as error:
 			# Not mounted anywhere most likely
 			log(f"Could not locate mount information for {self.dev_path}: {error}", level=logging.WARNING, fg="yellow")
-			pass
-
 		return None
 
 	@property

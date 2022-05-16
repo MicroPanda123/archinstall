@@ -10,38 +10,30 @@ class VersionDef(BaseModel):
 	version_string: str
 
 	@classmethod
-	def parse_version(self) -> List[str]:
-		if '.' in self.version_string:
-			versions = self.version_string.split('.')
-		else:
-			versions = [self.version_string]
-
-		return versions
+	def parse_version(cls) -> List[str]:
+		return (cls.version_string.split('.')
+		        if '.' in cls.version_string else [cls.version_string])
 
 	@classmethod
-	def major(self) -> str:
-		return self.parse_version()[0]
+	def major(cls) -> str:
+		return cls.parse_version()[0]
 
 	@classmethod
-	def minor(self) -> str:
-		versions = self.parse_version()
+	def minor(cls) -> str:
+		versions = cls.parse_version()
 		if len(versions) >= 2:
 			return versions[1]
 
 	@classmethod
-	def patch(self) -> str:
-		versions = self.parse_version()
+	def patch(cls) -> str:
+		versions = cls.parse_version()
 		if '-' in versions[-1]:
 			_, patch_version = versions[-1].split('-', 1)
 			return patch_version
 
 	def __eq__(self, other :'VersionDef') -> bool:
-		if other.major == self.major and \
-			other.minor == self.minor and \
-			other.patch == self.patch:
-
-			return True
-		return False
+		return (other.major == self.major and other.minor == self.minor
+		        and other.patch == self.patch)
 		
 	def __lt__(self, other :'VersionDef') -> bool:
 		if self.major > other.major:

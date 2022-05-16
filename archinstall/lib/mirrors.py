@@ -29,7 +29,7 @@ def sort_mirrorlist(raw_data :bytes, sort_order=["https", "http"]) -> bytes:
 
 	categories = {key: [] for key in sort_order + ["Unknown"]}
 	for line in raw_data.split(b"\n"):
-		if line[0:2] in (b'##', b''):
+		if line[:2] in (b'##', b''):
 			comments_and_whitespaces += line + b'\n'
 		elif line[:6].lower() == b'server' or line[:7].lower() == b'#server':
 			opening, url = line.split(b'=', 1)
@@ -71,13 +71,12 @@ def filter_mirrors_by_region(regions :str,
 	if sort_order:
 		new_list = sort_mirrorlist(new_list, sort_order=sort_order)
 
-	if destination:
-		with open(destination, "wb") as mirrorlist:
-			mirrorlist.write(new_list)
-
-		return True
-	else:
+	if not destination:
 		return new_list.decode('UTF-8')
+	with open(destination, "wb") as mirrorlist:
+		mirrorlist.write(new_list)
+
+	return True
 
 
 def add_custom_mirrors(mirrors: List[str], *args :str, **kwargs :str) -> bool:

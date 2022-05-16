@@ -104,7 +104,9 @@ class Filesystem:
 				format_options = partition.get('options',[]) + partition.get('filesystem',{}).get('format_options',[])
 				if partition.get('encrypted', False):
 					if not partition['device_instance']:
-						raise DiskError(f"Internal error caused us to loose the partition. Please report this issue upstream!")
+						raise DiskError(
+						    "Internal error caused us to loose the partition. Please report this issue upstream!"
+						)
 
 					if not partition.get('!password'):
 						if not storage['arguments'].get('!encryption-password'):
@@ -129,22 +131,23 @@ class Filesystem:
 						if not partition.get('wipe'):
 							if storage['arguments'] == 'silent':
 								raise ValueError(f"Missing fs-type to format on newly created encrypted partition {partition['device_instance']}")
-							else:
-								if not partition.get('filesystem'):
-									partition['filesystem'] = {}
+							if not partition.get('filesystem'):
+								partition['filesystem'] = {}
 
-								if not partition['filesystem'].get('format', False):
-									while True:
-										partition['filesystem']['format'] = input(f"Enter a valid fs-type for newly encrypted partition {partition['filesystem']['format']}: ").strip()
-										if not partition['filesystem']['format'] or valid_fs_type(partition['filesystem']['format']) is False:
-											print(_("You need to enter a valid fs-type in order to continue. See `man parted` for valid fs-type's."))
-											continue
-										break
+							if not partition['filesystem'].get('format', False):
+								while True:
+									partition['filesystem']['format'] = input(f"Enter a valid fs-type for newly encrypted partition {partition['filesystem']['format']}: ").strip()
+									if not partition['filesystem']['format'] or valid_fs_type(partition['filesystem']['format']) is False:
+										print(_("You need to enter a valid fs-type in order to continue. See `man parted` for valid fs-type's."))
+										continue
+									break
 
 						unlocked_device.format(partition['filesystem']['format'], options=format_options)
 				elif partition.get('wipe', False):
 					if not partition['device_instance']:
-						raise DiskError(f"Internal error caused us to loose the partition. Please report this issue upstream!")
+						raise DiskError(
+						    "Internal error caused us to loose the partition. Please report this issue upstream!"
+						)
 
 					partition['device_instance'].format(partition['filesystem']['format'], options=format_options)
 
@@ -195,9 +198,8 @@ class Filesystem:
 
 		previous_partition_uuids = {partition.uuid for partition in self.blockdevice.partitions.values()}
 
-		if self.mode == MBR:
-			if len(self.blockdevice.partitions) > 3:
-				DiskError("Too many partitions on disk, MBR disks can only have 3 primary partitions")
+		if self.mode == MBR and len(self.blockdevice.partitions) > 3:
+			DiskError("Too many partitions on disk, MBR disks can only have 3 primary partitions")
 
 		if partition_format:
 			parted_string = f'{self.blockdevice.device} mkpart {partition_type} {partition_format} {start} {end}'
@@ -229,12 +231,15 @@ class Filesystem:
 					count += 1
 					log(f"Could not get UUID for partition. Waiting before retry attempt {count} of 10 ...",level=logging.DEBUG)
 					time.sleep(float(storage['arguments'].get('disk-sleep', 0.2)))
-			else:
-				log("Add partition is exiting due to excessive wait time", level=logging.ERROR, fg="red")
-				raise DiskError(f"New partition never showed up after adding new partition on {self}.")
+			log("Add partition is exiting due to excessive wait time", level=logging.ERROR, fg="red")
+			raise DiskError(f"New partition never showed up after adding new partition on {self}.")
 
 		# TODO: This should never be able to happen
-		log(f"Could not find the new PARTUUID after adding the partition.", level=logging.ERROR, fg="red")
+		log(
+		    "Could not find the new PARTUUID after adding the partition.",
+		    level=logging.ERROR,
+		    fg="red",
+		)
 		log(f"Previous partitions: {previous_partition_uuids}", level=logging.ERROR, fg="red")
 		log(f"New partitions: {(previous_partition_uuids ^ {partition.uuid for partition in self.blockdevice.partitions.values()})}", level=logging.ERROR, fg="red")
 		raise DiskError(f"Could not add partition using: {parted_string}")
