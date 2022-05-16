@@ -130,12 +130,7 @@ def _has_option(option :str,options :list) -> bool:
 	""" auxiliary routine to check if an option is present in a list.
 	we check if the string appears in one of the options, 'cause it can appear in severl forms (option, option=val,...)
 	"""
-	if not options:
-		return False
-	for item in options:
-		if option in item:
-			return True
-	return False
+	return any(option in item for item in options) if options else False
 
 def manage_btrfs_subvolumes(installation :Installer,
 	partition :Dict[str, str],) -> list:

@@ -72,16 +72,20 @@ def suggest_single_disk_layout(block_device :BlockDevice,
 		layout[block_device.path]['partitions'][-1]['size'] = '512MiB'
 
 	layout[block_device.path]['partitions'].append({
-		# Root
-		"type" : "primary",
-		"start" : "206MiB",
-		"encrypted" : False,
-		"wipe" : True,
-		"mountpoint" : "/" if not using_subvolumes else None,
-		"filesystem" : {
-			"format" : default_filesystem,
-			"mount_options" : ["compress=zstd"] if compression else []
-		}
+	    "type":
+	    "primary",
+	    "start":
+	    "206MiB",
+	    "encrypted":
+	    False,
+	    "wipe":
+	    True,
+	    "mountpoint":
+	    None if using_subvolumes else "/",
+	    "filesystem": {
+	        "format": default_filesystem,
+	        "mount_options": ["compress=zstd"] if compression else [],
+	    },
 	})
 
 	if has_uefi():

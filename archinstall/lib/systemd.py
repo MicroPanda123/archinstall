@@ -95,9 +95,7 @@ class Boot:
 		try:
 			shutdown = SysCommand(f'systemd-run --machine={self.container_name} --pty shutdown now')
 		except SysCallError as error:
-			if error.exit_code == 256:
-				pass
-
+			pass
 		while self.session.is_alive():
 			time.sleep(0.25)
 
@@ -108,20 +106,13 @@ class Boot:
 
 	def __iter__(self) -> Iterator[str]:
 		if self.session:
-			for value in self.session:
-				yield value
+			yield from self.session
 
 	def __contains__(self, key: bytes) -> bool:
-		if self.session is None:
-			return False
-
-		return key in self.session
+		return False if self.session is None else key in self.session
 
 	def is_alive(self) -> bool:
-		if self.session is None:
-			return False
-
-		return self.session.is_alive()
+		return False if self.session is None else self.session.is_alive()
 
 	def SysCommand(self, cmd: list, *args, **kwargs) -> SysCommand:
 		if cmd[0][0] != '/' and cmd[0][:2] != './':

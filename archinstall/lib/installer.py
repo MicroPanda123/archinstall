@@ -96,10 +96,7 @@ class Installer:
 	def __init__(self, target :str, *, base_packages :Optional[List[str]] = None, kernels :Optional[List[str]] = None):
 		if base_packages is None:
 			base_packages = __packages__[:3]
-		if kernels is None:
-			self.kernels = ['linux']
-		else:
-			self.kernels = kernels
+		self.kernels = ['linux'] if kernels is None else kernels
 		self.target = target
 		self.init_time = time.strftime('%Y-%m-%d_%H-%M-%S')
 		self.milliseconds = int(str(time.time()).split('.')[1])
@@ -220,9 +217,7 @@ class Installer:
 				for mountpoint in [sub_list[subvolume] if isinstance(sub_list[subvolume],str) else sub_list[subvolume].get("mountpoint") for subvolume in sub_list if sub_list[subvolume]]:
 					if mountpoint == '/':
 						return True
-				return False
-			else:
-				return False
+			return False
 		elif partition.get("mountpoint") == '/':
 			return True
 		else:
@@ -233,16 +228,14 @@ class Installer:
 		# set the partitions as a list not part of a tree (which we don't need anymore (i think)
 		list_part = []
 		list_luks_handles = []
-		for blockdevice in layouts:
-			list_part.extend(layouts[blockdevice]['partitions'])
+		for value in layouts.values():
+			list_part.extend(value['partitions'])
 
 		# we manage the encrypted partititons
 		for partition in [entry for entry in list_part if entry.get('encrypted', False)]:
 			# open the luks device and all associate stuff
 			if not (password := partition.get('!password', None)):
 				raise RequirementError(f"Missing partition {partition['device_instance'].path} encryption password in layout: {partition}")
-			# i change a bit the naming conventions for the loop device
-				loopdev = f"{storage.get('ENC_IDENTIFIER', 'ai')}{pathlib.Path(partition['mountpoint']).name}loop"
 			else:
 				loopdev = f"{storage.get('ENC_IDENTIFIER', 'ai')}{pathlib.Path(partition['device_instance'].path).name}"
 			# note that we DON'T auto_unmount (i.e. close the encrypted device so it can be used
@@ -371,9 +364,10 @@ class Installer:
 		except SysCallError as error:
 			self.log(f'Could not sync a new package databse: {error}', level=logging.ERROR, fg="red")
 
-			if storage['arguments'].get('silent', False) is False:
-				if input('Would you like to re-try this download? (Y/n): ').lower().strip() in ('', 'y'):
-					return self.pacstrap(*packages, **kwargs)
+			if storage['arguments'].get('silent', False) is False and input(
+			    'Would you like to re-try this download? (Y/n): ').lower().strip() in (
+			        '', 'y'):
+				return self.pacstrap(*packages, **kwargs)
 
 			raise RequirementError(f'Could not sync mirrors: {error}', level=logging.ERROR, fg="red")
 
@@ -382,10 +376,11 @@ class Installer:
 		except SysCallError as error:
 			self.log(f'Could not strap in packages: {error}', level=logging.ERROR, fg="red")
 
-			if storage['arguments'].get('silent', False) is False:
-				if input('Would you like to re-try this download? (Y/n): ').lower().strip() in ('', 'y'):
-					return self.pacstrap(*packages, **kwargs)
-			
+			if storage['arguments'].get('silent', False) is False and input(
+			    'Would you like to re-try this download? (Y/n): ').lower().strip() in (
+			        '', 'y'):
+				return self.pacstrap(*packages, **kwargs)
+
 			raise RequirementError("Pacstrap failed. See /var/log/archinstall/install.log or above message for error details.")
 
 	def set_mirrors(self, mirrors :Mapping[str, Iterator[str]]) -> None:
@@ -399,7 +394,8 @@ class Installer:
 	def genfstab(self, flags :str = '-pU') -> bool:
 		self.log(f"Updating {self.target}/etc/fstab", level=logging.INFO)
 
-		if not (fstab := SysCommand(f'/usr/bin/genfstab {flags} {self.target}')).exit_code == 0:
+		if (fstab :=
+		    SysCommand(f'/usr/bin/genfstab {flags} {self.target}')).exit_code != 0:
 			raise RequirementError(f'Could not generate fstab, strapping in packages most likely failed (disk out of space?)\n Error: {fstab}')
 
 		with open(f"{self.target}/etc/fstab", 'a') as fstab_fh:
@@ -427,7 +423,8 @@ class Installer:
 		with open(f'{self.target}/etc/locale.conf', 'w') as fh:
 			fh.write(f'LANG={locale}.{encoding}\n')
 
-		return True if SysCommand(f'/usr/bin/arch-chroot {self.target} locale-gen').exit_code == 0 else False
+		return (SysCommand(f'/usr/bin/arch-chroot {self.target} locale-gen').exit_code
+		        == 0)
 
 	def set_timezone(self, zone :str, *args :str, **kwargs :str) -> bool:
 		if not zone:
@@ -455,7 +452,11 @@ class Installer:
 		return False
 
 	def activate_ntp(self) -> None:
-		log(f"activate_ntp() is deprecated, use activate_time_syncronization()", fg="yellow", level=logging.INFO)
+		log(
+		    "activate_ntp() is deprecated, use activate_time_syncronization()",
+		    fg="yellow",
+		    level=logging.INFO,
+		)
 		self.activate_time_syncronization()
 
 	def activate_time_syncronization(self) -> None:
@@ -519,15 +520,13 @@ class Installer:
 
 		for plugin in plugins.values():
 			if hasattr(plugin, 'on_configure_nic'):
-				new_conf = plugin.on_configure_nic(
-					network_config.iface,
-					network_config.dhcp,
-					network_config.ip,
-					network_config.gateway,
-					network_config.dns
-				)
-
-				if new_conf:
+				if new_conf := plugin.on_configure_nic(
+				    network_config.iface,
+				    network_config.dhcp,
+				    network_config.ip,
+				    network_config.gateway,
+				    network_config.dns,
+				):
 					conf = new_conf
 
 		with open(f"{self.target}/etc/systemd/network/10-{network_config.iface}.network", "a") as netconf:
@@ -600,10 +599,8 @@ class Installer:
 
 	def mkinitcpio(self, *flags :str) -> bool:
 		for plugin in plugins.values():
-			if hasattr(plugin, 'on_mkinitcpio'):
-				# Allow plugins to override the usage of mkinitcpio altogether.
-				if plugin.on_mkinitcpio(self):
-					return True
+			if hasattr(plugin, 'on_mkinitcpio') and plugin.on_mkinitcpio(self):
+				return True
 
 		with open(f'{self.target}/etc/mkinitcpio.conf', 'w') as mkinit:
 			mkinit.write(f"MODULES=({' '.join(self.MODULES)})\n")
@@ -620,16 +617,13 @@ class Installer:
 		#       the partitioning. Leaving here for now.
 
 		for partition in self.partitions:
-			if partition.filesystem == 'btrfs':
-				# if partition.encrypted:
-				if 'btrfs-progs' not in self.base_packages:
-					self.base_packages.append('btrfs-progs')
-			if partition.filesystem == 'xfs':
-				if 'xfs' not in self.base_packages:
-					self.base_packages.append('xfsprogs')
-			if partition.filesystem == 'f2fs':
-				if 'f2fs' not in self.base_packages:
-					self.base_packages.append('f2fs-tools')
+			if (partition.filesystem == 'btrfs'
+			    and 'btrfs-progs' not in self.base_packages):
+				self.base_packages.append('btrfs-progs')
+			if partition.filesystem == 'xfs' and 'xfs' not in self.base_packages:
+				self.base_packages.append('xfsprogs')
+			if partition.filesystem == 'f2fs' and 'f2fs' not in self.base_packages:
+				self.base_packages.append('f2fs-tools')
 
 			# Configure mkinitcpio to handle some specific use cases.
 			if partition.filesystem == 'btrfs':
@@ -638,13 +632,12 @@ class Installer:
 				if '/usr/bin/btrfs' not in self.BINARIES:
 					self.BINARIES.append('/usr/bin/btrfs')
 			# There is not yet an fsck tool for NTFS. If it's being used for the root filesystem, the hook should be removed.
-			if partition.filesystem == 'ntfs3' and partition.mountpoint == self.target:
-				if 'fsck' in self.HOOKS:
-					self.HOOKS.remove('fsck')
+			if (partition.filesystem == 'ntfs3' and partition.mountpoint == self.target
+			    and 'fsck' in self.HOOKS):
+				self.HOOKS.remove('fsck')
 
-			if self.detect_encryption(partition):
-				if 'encrypt' not in self.HOOKS:
-					self.HOOKS.insert(self.HOOKS.index('filesystems'), 'encrypt')
+			if self.detect_encryption(partition) and 'encrypt' not in self.HOOKS:
+				self.HOOKS.insert(self.HOOKS.index('filesystems'), 'encrypt')
 
 		if not has_uefi():
 			self.base_packages.append('grub')
@@ -716,23 +709,22 @@ class Installer:
 		return True
 
 	def setup_swap(self, kind :str = 'zram') -> bool:
-		if kind == 'zram':
-			self.log(f"Setting up swap on zram")
-			self.pacstrap('zram-generator')
+		if kind != 'zram':
+			raise ValueError("Archinstall currently only supports setting up swap on zram")
+		self.log("Setting up swap on zram")
+		self.pacstrap('zram-generator')
 
-			# We could use the default example below, but maybe not the best idea: https://github.com/archlinux/archinstall/pull/678#issuecomment-962124813
-			# zram_example_location = '/usr/share/doc/zram-generator/zram-generator.conf.example'
-			# shutil.copy2(f"{self.target}{zram_example_location}", f"{self.target}/usr/lib/systemd/zram-generator.conf")
-			with open(f"{self.target}/etc/systemd/zram-generator.conf", "w") as zram_conf:
-				zram_conf.write("[zram0]\n")
+		# We could use the default example below, but maybe not the best idea: https://github.com/archlinux/archinstall/pull/678#issuecomment-962124813
+		# zram_example_location = '/usr/share/doc/zram-generator/zram-generator.conf.example'
+		# shutil.copy2(f"{self.target}{zram_example_location}", f"{self.target}/usr/lib/systemd/zram-generator.conf")
+		with open(f"{self.target}/etc/systemd/zram-generator.conf", "w") as zram_conf:
+			zram_conf.write("[zram0]\n")
 
-			self.enable_service('systemd-zram-setup@zram0.service')
+		self.enable_service('systemd-zram-setup@zram0.service')
 
-			self._zram_enabled = True
+		self._zram_enabled = True
 
-			return True
-		else:
-			raise ValueError(f"Archinstall currently only supports setting up swap on zram")
+		return True
 
 	def add_systemd_bootloader(self, boot_partition :Partition, root_partition :Partition) -> bool:
 		self.pacstrap('efibootmgr')
@@ -803,13 +795,13 @@ class Installer:
 
 				for subvolume in root_partition.subvolumes:
 					if subvolume.root is True:
-						options_entry = f"rootflags=subvol={subvolume.name} " + options_entry
+						options_entry = f"rootflags=subvol={subvolume.name} {options_entry}"
 
 				# Zswap should be disabled when using zram.
 				#
 				# https://github.com/archlinux/archinstall/issues/881
 				if self._zram_enabled:
-					options_entry = "zswap.enabled=0 " + options_entry
+					options_entry = f"zswap.enabled=0 {options_entry}"
 
 				if real_device := self.detect_encryption(root_partition):
 					# TODO: We need to detect if the encrypted device is a whole disk encryption,
@@ -829,9 +821,9 @@ class Installer:
 
 		root_fs_type = get_mount_fs_type(root_partition.filesystem)
 
+		_file = "/etc/default/grub"
 		if real_device := self.detect_encryption(root_partition):
 			root_uuid = SysCommand(f"blkid -s UUID -o value {real_device.path}").decode().rstrip()
-			_file = "/etc/default/grub"
 			add_to_CMDLINE_LINUX = f"sed -i 's/GRUB_CMDLINE_LINUX=\"\"/GRUB_CMDLINE_LINUX=\"cryptdevice=UUID={root_uuid}:cryptlvm rootfstype={root_fs_type}\"/'"
 			enable_CRYPTODISK = "sed -i 's/#GRUB_ENABLE_CRYPTODISK=y/GRUB_ENABLE_CRYPTODISK=y/'"
 
@@ -839,7 +831,6 @@ class Installer:
 			SysCommand(f"/usr/bin/arch-chroot {self.target} {add_to_CMDLINE_LINUX} {_file}")
 			SysCommand(f"/usr/bin/arch-chroot {self.target} {enable_CRYPTODISK} {_file}")
 		else:
-			_file = "/etc/default/grub"
 			add_to_CMDLINE_LINUX = f"sed -i 's/GRUB_CMDLINE_LINUX=\"\"/GRUB_CMDLINE_LINUX=\"rootfstype={root_fs_type}\"/'"
 			SysCommand(f"/usr/bin/arch-chroot {self.target} {add_to_CMDLINE_LINUX} {_file}")
 
@@ -928,11 +919,8 @@ class Installer:
 		"""
 
 		for plugin in plugins.values():
-			if hasattr(plugin, 'on_add_bootloader'):
-				# Allow plugins to override the boot-loader handling.
-				# This allows for bot configuring and installing bootloaders.
-				if plugin.on_add_bootloader(self):
-					return True
+			if hasattr(plugin, 'on_add_bootloader') and plugin.on_add_bootloader(self):
+				return True
 
 		boot_partition = None
 		root_partition = None
@@ -945,14 +933,17 @@ class Installer:
 		if boot_partition is None or root_partition is None:
 			raise ValueError(f"Could not detect root ({root_partition}) or boot ({boot_partition}) in {self.target} based on: {self.partitions}")
 
-		self.log(f'Adding bootloader {bootloader} to {boot_partition if boot_partition else root_partition}', level=logging.INFO)
+		self.log(
+		    f'Adding bootloader {bootloader} to {boot_partition or root_partition}',
+		    level=logging.INFO,
+		)
 
-		if bootloader == 'systemd-bootctl':
+		if bootloader == 'efistub':
+			self.add_efistub_bootloader(boot_partition, root_partition)
+		elif bootloader == 'systemd-bootctl':
 			self.add_systemd_bootloader(boot_partition, root_partition)
 		elif bootloader == "grub-install":
 			self.add_grub_bootloader(boot_partition, root_partition)
-		elif bootloader == 'efistub':
-			self.add_efistub_bootloader(boot_partition, root_partition)
 		else:
 			raise RequirementError(f"Unknown (or not yet implemented) bootloader requested: {bootloader}")
 
@@ -1025,7 +1016,9 @@ class Installer:
 
 		if not handled_by_plugin:
 			self.log(f'Creating user {user}', level=logging.INFO)
-			if not (output := SysCommand(f'/usr/bin/arch-chroot {self.target} useradd -m -G wheel {user}')).exit_code == 0:
+			if (output := SysCommand(
+			    f'/usr/bin/arch-chroot {self.target} useradd -m -G wheel {user}')
+			    ).exit_code != 0:
 				raise SystemError(f"Could not create user inside installation: {output}")
 
 		for plugin in plugins.values():
@@ -1054,7 +1047,8 @@ class Installer:
 		echo = shlex.join(['echo', combo])
 		sh = shlex.join(['sh', '-c', echo])
 
-		result = SysCommand(f"/usr/bin/arch-chroot {self.target} " + sh[:-1] + " | chpasswd'")
+		result = SysCommand(f"/usr/bin/arch-chroot {self.target} {sh[:-1]}" +
+		                    " | chpasswd'")
 		return result.exit_code == 0
 
 	def user_set_shell(self, user :str, shell :str) -> bool:
@@ -1108,6 +1102,10 @@ class Installer:
 				if (output := session.SysCommand(["localectl", "set-x11-keymap", language])).exit_code != 0:
 					raise ServiceException(f"Unable to set locale '{language}' for X11: {output}")
 		else:
-			self.log(f'X11-Keyboard language was not changed from default (no language specified).', fg="yellow", level=logging.INFO)
+			self.log(
+			    'X11-Keyboard language was not changed from default (no language specified).',
+			    fg="yellow",
+			    level=logging.INFO,
+			)
 
 		return True

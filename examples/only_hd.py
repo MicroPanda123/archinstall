@@ -12,10 +12,16 @@ class OnlyHDMenu(archinstall.GlobalMenu):
 		super()._setup_selection_menu_options()
 		options_list = []
 		mandatory_list = []
-		options_list = ['harddrives', 'disk_layouts', '!encryption-password','swap']
 		mandatory_list = ['harddrives']
-		options_list.extend(['save_config','install','abort'])
-
+		options_list = [
+		    'harddrives',
+		    'disk_layouts',
+		    '!encryption-password',
+		    'swap',
+		    'save_config',
+		    'install',
+		    'abort',
+		]
 		for entry in self._menu_options:
 			if entry in options_list:
 				# for not lineal executions, only self.option(entry).set_enabled and set_mandatory are necessary
@@ -32,10 +38,9 @@ class OnlyHDMenu(archinstall.GlobalMenu):
 		mandatory_waiting = 0
 		for field in self._menu_options:
 			option = self._menu_options[field]
-			if option.is_mandatory():
-				if not option.has_selection():
-					mandatory_waiting += 1
-					mandatory_fields += [field,]
+			if option.is_mandatory() and not option.has_selection():
+				mandatory_waiting += 1
+				mandatory_fields += [field,]
 		return mandatory_fields, mandatory_waiting
 
 	def _missing_configs(self):
@@ -67,21 +72,22 @@ def perform_disk_operations():
 		Issue a final warning before we continue with something un-revertable.
 		We mention the drive one last time, and count from 5 to 0.
 	"""
-	if archinstall.arguments.get('harddrives', None):
-		print(f" ! Formatting {archinstall.arguments['harddrives']} in ", end='')
-		archinstall.do_countdown()
-		"""
+	if not archinstall.arguments.get('harddrives', None):
+		return
+	print(f" ! Formatting {archinstall.arguments['harddrives']} in ", end='')
+	archinstall.do_countdown()
+	"""
 			Setup the blockdevice, filesystem (and optionally encryption).
 			Once that's done, we'll hand over to perform_installation()
 		"""
-		mode = archinstall.GPT
-		if archinstall.has_uefi() is False:
-			mode = archinstall.MBR
+	mode = archinstall.GPT
+	if archinstall.has_uefi() is False:
+		mode = archinstall.MBR
 
-		for drive in archinstall.arguments.get('harddrives', []):
-			if archinstall.arguments.get('disk_layouts', {}).get(drive.path):
-				with archinstall.Filesystem(drive, mode) as fs:
-					fs.load_layout(archinstall.arguments['disk_layouts'][drive.path])
+	for drive in archinstall.arguments.get('harddrives', []):
+		if archinstall.arguments.get('disk_layouts', {}).get(drive.path):
+			with archinstall.Filesystem(drive, mode) as fs:
+				fs.load_layout(archinstall.arguments['disk_layouts'][drive.path])
 
 def perform_installation(mountpoint):
 	"""
@@ -97,9 +103,11 @@ def perform_installation(mountpoint):
 
 		# Placing /boot check during installation because this will catch both re-use and wipe scenarios.
 		for partition in installation.partitions:
-			if partition.mountpoint == installation.target + '/boot':
-				if partition.size <= 0.25: # in GB
-					raise archinstall.DiskError(f"The selected /boot partition in use is not large enough to properly install a boot loader. Please resize it to at least 256MB and re-run the installation.")
+			if (partition.mountpoint == f'{installation.target}/boot'
+			    and partition.size <= 0.25):
+				raise archinstall.DiskError(
+				    "The selected /boot partition in use is not large enough to properly install a boot loader. Please resize it to at least 256MB and re-run the installation."
+				)
 		# to generate a fstab directory holder. Avoids an error on exit and at the same time checks the procedure
 		target = pathlib.Path(f"{mountpoint}/etc/fstab")
 		if not target.parent.exists():

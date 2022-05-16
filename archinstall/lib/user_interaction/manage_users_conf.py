@@ -39,41 +39,24 @@ class UserList(ListManager):
 	def reformat(self, data: List) -> Dict:
 		def format_element(elem :str):
 			# secret gives away the length of the password
-			if data[elem].get('!password'):
-				pwd = '*' * 16
-			else:
-				pwd = ''
-			if data[elem].get('sudoer'):
-				super_user = 'Superuser'
-			else:
-				super_user = ' '
+			pwd = '*' * 16 if data[elem].get('!password') else ''
+			super_user = 'Superuser' if data[elem].get('sudoer') else ' '
 			return f"{elem:16}: password {pwd:16} {super_user}"
 
 		return {format_element(e): e for e in data}
 
 	def action_list(self):
-		if self.target:
-			active_user = list(self.target.keys())[0]
-		else:
-			active_user = None
+		active_user = list(self.target.keys())[0] if self.target else None
 		sudoer = self.target[active_user].get('sudoer', False)
 		if self.sudo is None:
 			return self.actions
-		if self.sudo and sudoer:
+		if self.sudo and sudoer or not self.sudo and not sudoer:
 			return self.actions
-		elif self.sudo and not sudoer:
-			return [self.actions[2]]
-		elif not self.sudo and sudoer:
-			return [self.actions[2]]
 		else:
-			return self.actions
+			return [self.actions[2]]
 
 	def exec_action(self, data: Any):
-		if self.target:
-			active_user = list(self.target.keys())[0]
-		else:
-			active_user = None
-
+		active_user = list(self.target.keys())[0] if self.target else None
 		if self.action == self.actions[0]:  # add
 			new_user = self.add_user()
 			# no unicity check, if exists will be replaced
@@ -99,13 +82,11 @@ class UserList(ListManager):
 			userid = input(prompt).strip(' ')
 			if not userid:
 				return {}  # end
-			if not self._check_for_correct_username(userid):
-				pass
-			else:
+			if self._check_for_correct_username(userid):
 				break
 		if self.sudo:
 			sudoer = True
-		elif self.sudo is not None and not self.sudo:
+		elif self.sudo is not None:
 			sudoer = False
 		else:
 			sudoer = False
@@ -113,7 +94,7 @@ class UserList(ListManager):
 								skip=False,
 								preset_values=Menu.yes() if sudoer else Menu.no(),
 								default_option=Menu.no()).run()
-			sudoer = True if sudo_choice == Menu.yes() else False
+			sudoer = sudo_choice == Menu.yes()
 
 		password = get_password(prompt=str(_('Password for user "{}": ').format(userid)))
 
@@ -124,21 +105,22 @@ def manage_users(prompt: str, sudo: bool) -> tuple[dict, dict]:
 	# TODO Filtering and some kind of simpler code
 	lusers = {}
 	if storage['arguments'].get('!superusers', {}):
-		lusers.update({
-			uid: {
-				'!password': storage['arguments']['!superusers'][uid].get('!password'),
-				'sudoer': True
-			}
-			for uid in storage['arguments'].get('!superusers', {})
-		})
+		lusers |= {
+		    uid: {
+		        '!password':
+		        storage['arguments']['!superusers'][uid].get('!password'),
+		        'sudoer': True,
+		    }
+		    for uid in storage['arguments'].get('!superusers', {})
+		}
 	if storage['arguments'].get('!users', {}):
-		lusers.update({
-			uid: {
-				'!password': storage['arguments']['!users'][uid].get('!password'),
-				'sudoer': False
-			}
-			for uid in storage['arguments'].get('!users', {})
-		})
+		lusers |= {
+		    uid: {
+		        '!password': storage['arguments']['!users'][uid].get('!password'),
+		        'sudoer': False,
+		    }
+		    for uid in storage['arguments'].get('!users', {})
+		}
 	# processing
 	lusers = UserList(prompt, lusers, sudo).run()
 	# return data
@@ -155,12 +137,13 @@ def manage_users(prompt: str, sudo: bool) -> tuple[dict, dict]:
 
 
 def ask_for_superuser_account(prompt: str) -> Dict[str, Dict[str, str]]:
-	prompt = prompt if prompt else str(_('Define users with sudo privilege, by username: '))
+	prompt = prompt or str(_('Define users with sudo privilege, by username: '))
 	superusers, dummy = manage_users(prompt, sudo=True)
 	return superusers
 
 
 def ask_for_additional_users(prompt: str = '') -> Dict[str, Dict[str, str | None]]:
-	prompt = prompt if prompt else _('Any additional users to install (leave blank for no users): ')
+	prompt = prompt or _(
+	    'Any additional users to install (leave blank for no users): ')
 	dummy, users = manage_users(prompt, sudo=False)
 	return users

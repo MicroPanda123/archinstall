@@ -49,9 +49,7 @@ class ConfigurationOutput:
 				self._user_credentials[key] = self._config[key]
 			elif key == 'disk_layouts':
 				self._disk_layout = self._config[key]
-			elif key in self._ignore:
-				pass
-			else:
+			elif key not in self._ignore:
 				self._user_config[key] = self._config[key]
 
 	def user_config_to_json(self) -> str:

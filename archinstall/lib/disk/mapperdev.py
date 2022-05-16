@@ -60,8 +60,6 @@ class MapperDev:
 		except SysCallError as error:
 			# Not mounted anywhere most likely
 			log(f"Could not locate mount information for {self.path}: {error}", level=logging.WARNING, fg="yellow")
-			pass
-
 		return None
 
 	@property
@@ -77,7 +75,6 @@ class MapperDev:
 	@property
 	def subvolumes(self) -> Iterator['BtrfsSubvolume']:
 		from .btrfs import get_subvolumes_from_findmnt
-		
+
 		for mountpoint in self.mount_information:
-			for result in get_subvolumes_from_findmnt(mountpoint):
-				yield result
+			yield from get_subvolumes_from_findmnt(mountpoint)

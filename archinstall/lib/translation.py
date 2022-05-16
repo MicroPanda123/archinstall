@@ -90,8 +90,7 @@ class Translation:
 	@classmethod
 	def get_locales_dir(cls) -> Path:
 		cur_path = Path(__file__).parent.parent
-		locales_dir = Path.joinpath(cur_path, 'locales')
-		return locales_dir
+		return Path.joinpath(cur_path, 'locales')
 
 	@classmethod
 	def _defined_languages(cls) -> List[str]:

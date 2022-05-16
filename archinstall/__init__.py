@@ -118,16 +118,15 @@ def parse_unspecified_argument_list(unknowns :list, multiple :bool = False, erro
 				config[key] = element
 				last_key = key # multiple
 				key = None
-			else:
-				if multiple and last_key:
-					if isinstance(config[last_key],str):
-						config[last_key] = [config[last_key],element]
-					else:
-						config[last_key].append(element)
-				elif error:
-					raise ValueError(f"Entry {element} is not related to any argument")
+			elif multiple and last_key:
+				if isinstance(config[last_key],str):
+					config[last_key] = [config[last_key],element]
 				else:
-					print(f" We ignore the entry {element} as it isn't related to any argument")
+					config[last_key].append(element)
+			elif error:
+				raise ValueError(f"Entry {element} is not related to any argument")
+			else:
+				print(f" We ignore the entry {element} as it isn't related to any argument")
 	return config
 
 def get_arguments() -> Dict[str, Any]:
@@ -148,24 +147,20 @@ def get_arguments() -> Dict[str, Any]:
 	args, unknowns = parser.parse_known_args()
 	# preprocess the json files.
 	# TODO Expand the url access to the other JSON file arguments ?
-	if args.config is not None:
-		if not json_stream_to_structure('--config', args.config, config):
-			exit(1)
+	if args.config is not None and not json_stream_to_structure(
+	    '--config', args.config, config):
+		exit(1)
 
-	if args.creds is not None:
-		if not json_stream_to_structure('--creds', args.creds, config):
-			exit(1)
-			
+	if args.creds is not None and not json_stream_to_structure(
+	    '--creds', args.creds, config):
+		exit(1)
+
 	# load the parameters. first the known, then the unknowns
-	config.update(vars(args))
-	config.update(parse_unspecified_argument_list(unknowns))
+	config |= vars(args)
+	config |= parse_unspecified_argument_list(unknowns)
 	# amend the parameters (check internal consistency)
 	# Installation can't be silent if config is not passed
-	if args.config is not None :
-		config["silent"] = args.silent
-	else:
-		config["silent"] = False
-
+	config["silent"] = args.silent if args.config is not None else False
 	# avoiding a compatibility issue
 	if 'dry-run' in config:
 		del config['dry-run']
@@ -226,10 +221,10 @@ def post_process_arguments(arguments):
 			exit(1)
 		else:
 			if arguments.get('harddrives') is None:
-				arguments['harddrives'] = [disk for disk in layout_storage]
+				arguments['harddrives'] = list(layout_storage)
 			# backward compatibility. Change partition.format for partition.wipe
 			for disk in layout_storage:
-				for i,partition in enumerate(layout_storage[disk].get('partitions',[])):
+				for partition in layout_storage[disk].get('partitions',[]):
 					if 'format' in partition:
 						partition['wipe'] = partition['format']
 						del partition['format']

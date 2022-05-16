@@ -121,18 +121,19 @@ class GlobalMenu(GeneralMenu):
 				default={},
 				exec_func=lambda n,v:self._users_resynch(),
 				display_func=lambda x: list(x.keys()) if x else '[]')
-		self._menu_options['profile'] = \
-			Selector(
-				_('Specify profile'),
-				lambda preset: self._select_profile(preset),
-				display_func=lambda x: x if x else 'None')
-		self._menu_options['audio'] = \
-			Selector(
-				_('Select audio'),
-				lambda preset: ask_for_audio_selection(is_desktop_profile(storage['arguments'].get('profile', None)),preset),
-				display_func=lambda x: x if x else 'None',
-				default=None
-			)
+		self._menu_options['profile'] = Selector(
+		    _('Specify profile'),
+		    lambda preset: self._select_profile(preset),
+		    display_func=lambda x: x or 'None',
+		)
+		self._menu_options['audio'] = Selector(
+		    _('Select audio'),
+		    lambda preset: ask_for_audio_selection(
+		        is_desktop_profile(storage['arguments'].get('profile', None)), preset
+		    ),
+		    display_func=lambda x: x or 'None',
+		    default=None,
+		)
 		self._menu_options['kernels'] = \
 			Selector(
 				_('Select kernels'),
@@ -172,12 +173,12 @@ class GlobalMenu(GeneralMenu):
 				_('Save configuration'),
 				lambda preset: save_config(self._data_store),
 				no_store=True)
-		self._menu_options['install'] = \
-			Selector(
-				self._install_text(),
-				exec_func=lambda n,v: True if len(self._missing_configs()) == 0 else False,
-				preview_func=self._prev_install_missing_config,
-				no_store=True)
+		self._menu_options['install'] = Selector(
+		    self._install_text(),
+		    exec_func=lambda n, v: len(self._missing_configs()) == 0,
+		    preview_func=self._prev_install_missing_config,
+		    no_store=True,
+		)
 
 		self._menu_options['abort'] = Selector(_('Abort'), exec_func=lambda n,v:exit(1))
 
@@ -189,12 +190,11 @@ class GlobalMenu(GeneralMenu):
 		self._update_install_text(name, result)
 
 	def exit_callback(self):
-		if self._data_store.get('harddrives', None) and self._data_store.get('!encryption-password', None):
-			# If no partitions was marked as encrypted, but a password was supplied and we have some disks to format..
-			# Then we need to identify which partitions to encrypt. This will default to / (root).
-			if len(list(encrypted_partitions(storage['arguments'].get('disk_layouts', [])))) == 0:
-				storage['arguments']['disk_layouts'] = select_encrypted_partitions(
-					storage['arguments']['disk_layouts'], storage['arguments']['!encryption-password'])
+		if (self._data_store.get('harddrives', None)
+		    and self._data_store.get('!encryption-password', None) and not list(
+		        encrypted_partitions(storage['arguments'].get('disk_layouts', [])))):
+			storage['arguments']['disk_layouts'] = select_encrypted_partitions(
+				storage['arguments']['disk_layouts'], storage['arguments']['!encryption-password'])
 
 	def _install_text(self):
 		missing = len(self._missing_configs())
@@ -205,12 +205,10 @@ class GlobalMenu(GeneralMenu):
 	def _prev_network_configuration(self, cur_value: Union[NetworkConfiguration, List[NetworkConfiguration]]) -> str:
 		if not cur_value:
 			return _('Not configured, unavailable unless setup manually')
-		else:
-			if isinstance(cur_value, list):
-				ifaces = [x.iface for x in cur_value]
-				return f'Configured ifaces: {ifaces}'
-			else:
-				return str(cur_value)
+		if not isinstance(cur_value, list):
+			return str(cur_value)
+		ifaces = [x.iface for x in cur_value]
+		return f'Configured ifaces: {ifaces}'
 
 	def _prev_install_missing_config(self) -> Optional[str]:
 		if missing := self._missing_configs():
@@ -241,8 +239,7 @@ class GlobalMenu(GeneralMenu):
 
 	def _set_root_password(self):
 		prompt = str(_('Enter root password (leave blank to disable root): '))
-		password = get_password(prompt=prompt)
-		return password
+		return get_password(prompt=prompt)
 
 	def _select_encrypted_password(self):
 		if passwd := get_password(prompt=str(_('Enter disk encryption password (leave blank for no encryption): '))):
@@ -329,11 +326,10 @@ class GlobalMenu(GeneralMenu):
 
 	def _create_superuser_account(self):
 		superusers = ask_for_superuser_account(str(_('Manage superuser accounts: ')))
-		return superusers if superusers else None
+		return superusers or None
 
 	def _create_user_account(self):
-		users = ask_for_additional_users(str(_('Manage ordinary user accounts: ')))
-		return users
+		return ask_for_additional_users(str(_('Manage ordinary user accounts: ')))
 
 	def _display_superusers(self):
 		superusers = self._data_store.get('!superusers', {})

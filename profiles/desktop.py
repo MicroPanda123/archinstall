@@ -70,9 +70,8 @@ def _prep_function(*args, **kwargs) -> bool:
 		with profile.load_instructions(namespace=f"{choice.value}.py") as imported:
 			if hasattr(imported, '_prep_function'):
 				return imported._prep_function()
-			else:
-				log(f"Deprecated (??): {choice.value} profile has no _prep_function() anymore")
-				exit(1)
+			log(f"Deprecated (??): {choice.value} profile has no _prep_function() anymore")
+			exit(1)
 
 	return False
 

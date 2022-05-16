@@ -60,19 +60,13 @@ def package_search(package :str) -> PackageSearch:
 
 def find_package(package :str) -> List[PackageSearchResult]:
 	data = package_search(package)
-	results = []
-
-	for result in data.results:
-		if result.pkgname == package:
-			results.append(result)
+	results = [result for result in data.results if result.pkgname == package]
 
 	# If we didn't find the package in the search results,
 	# odds are it's a group package
 	if not results:
 		# Check if the package is actually a group
-		for result in group_search(package):
-			results.append(result)
-
+		results.extend(iter(group_search(package)))
 	return results
 
 

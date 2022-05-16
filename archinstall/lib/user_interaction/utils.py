@@ -39,10 +39,7 @@ def get_password(prompt: str = '') -> Optional[str]:
 	if not prompt:
 		prompt = _("Enter a password: ")
 
-	while passwd := getpass.getpass(prompt):
-		if len(passwd.strip()) <= 0:
-			break
-
+	while (passwd := getpass.getpass(prompt)) and len(passwd.strip()) > 0:
 		if not check_password_strong(passwd):
 			continue
 

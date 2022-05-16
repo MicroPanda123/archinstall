@@ -30,20 +30,19 @@ def list_locales() -> List[str]:
 
 def get_locale_mode_text(mode):
 	if mode == 'LC_ALL':
-		mode_text = "general (LC_ALL)"
-	elif mode == "LC_CTYPE":
-		mode_text = "Character set"
-	elif mode == "LC_NUMERIC":
-		mode_text = "Numeric values"
-	elif mode == "LC_TIME":
-		mode_text = "Time Values"
+		return "general (LC_ALL)"
 	elif mode == "LC_COLLATE":
-		mode_text = "sort order"
+		return "sort order"
+	elif mode == "LC_CTYPE":
+		return "Character set"
 	elif mode == "LC_MESSAGES":
-		mode_text = "text messages"
+		return "text messages"
+	elif mode == "LC_NUMERIC":
+		return "Numeric values"
+	elif mode == "LC_TIME":
+		return "Time Values"
 	else:
-		mode_text = "Unassigned"
-	return mode_text
+		return "Unassigned"
 
 def reset_cmd_locale():
 	""" sets the cmd_locale to its saved default """
@@ -119,10 +118,7 @@ def c_locale_environ(func :Callable):
 	return wrapper
 
 def list_installed_locales() -> List[str]:
-	lista = []
-	for line in SysCommand('locale -a'):
-		lista.append(line.decode('UTF-8').strip())
-	return lista
+	return [line.decode('UTF-8').strip() for line in SysCommand('locale -a')]
 
 def list_x11_keyboard_languages() -> Iterator[str]:
 	for line in SysCommand("localectl --no-pager list-x11-keymap-layouts", environment_vars={'SYSTEMD_COLORS': '0'}):
@@ -130,17 +126,13 @@ def list_x11_keyboard_languages() -> Iterator[str]:
 
 
 def verify_keyboard_layout(layout :str) -> bool:
-	for language in list_keyboard_languages():
-		if layout.lower() == language.lower():
-			return True
-	return False
+	return any(layout.lower() == language.lower()
+	           for language in list_keyboard_languages())
 
 
 def verify_x11_keyboard_layout(layout :str) -> bool:
-	for language in list_x11_keyboard_languages():
-		if layout.lower() == language.lower():
-			return True
-	return False
+	return any(layout.lower() == language.lower()
+	           for language in list_x11_keyboard_languages())
 
 
 def search_keyboard_layout(layout :str) -> Iterator[str]:

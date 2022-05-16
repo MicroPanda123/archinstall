@@ -81,7 +81,7 @@ def wireless_scan(interface :str) -> None:
 	if interfaces[interface] != 'WIRELESS':
 		raise HardwareIncompatibilityError(f"Interface {interface} is not a wireless interface: {interfaces}")
 
-	if not (output := SysCommand(f"iwctl station {interface} scan")).exit_code == 0:
+	if (output := SysCommand(f"iwctl station {interface} scan")).exit_code != 0:
 		raise SystemError(f"Could not scan for wireless networks: {output}")
 
 	if '_WIFI' not in storage:

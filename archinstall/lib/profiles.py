@@ -32,7 +32,7 @@ def grab_url_data(path :str) -> str:
 
 
 def is_desktop_profile(profile :str) -> bool:
-	if str(profile) == 'Profile(desktop)':
+	if profile == 'Profile(desktop)':
 		return True
 
 	desktop_profile = Profile(None, "desktop")
@@ -43,7 +43,7 @@ def is_desktop_profile(profile :str) -> bool:
 			with desktop_profile.load_instructions(namespace=f"{desktop_profile.namespace}.py") as imported:
 				if hasattr(imported, '__supported__'):
 					desktop_profiles = imported.__supported__
-					return str(profile) in [f"Profile({s})" for s in desktop_profiles]
+					return profile in [f"Profile({s})" for s in desktop_profiles]
 
 	return False
 
@@ -141,16 +141,16 @@ class Script:
 			self.namespace = self.original_namespace
 
 	def localize_path(self, profile_path :str) -> str:
-		if (url := urllib.parse.urlparse(profile_path)).scheme and url.scheme in ('https', 'http'):
-			if not self.converted_path:
-				self.converted_path = f"/tmp/{os.path.basename(self.profile).replace('.py', '')}_{hashlib.md5(os.urandom(12)).hexdigest()}.py"
-
-				with open(self.converted_path, "w") as temp_file:
-					temp_file.write(urllib.request.urlopen(url.geturl()).read().decode('utf-8'))
-
-			return self.converted_path
-		else:
+		if not (url := urllib.parse.urlparse(profile_path)
+		        ).scheme or url.scheme not in ('https', 'http'):
 			return profile_path
+		if not self.converted_path:
+			self.converted_path = f"/tmp/{os.path.basename(self.profile).replace('.py', '')}_{hashlib.md5(os.urandom(12)).hexdigest()}.py"
+
+			with open(self.converted_path, "w") as temp_file:
+				temp_file.write(urllib.request.urlopen(url.geturl()).read().decode('utf-8'))
+
+		return self.converted_path
 
 	@property
 	def path(self) -> str:
